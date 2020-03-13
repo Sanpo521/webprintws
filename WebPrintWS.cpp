@@ -17,20 +17,23 @@ DWORD WINAPI ServiceWorkerThread(LPVOID lpParam)
 {
 	OutputDebugPrintf(_T("[SanpoWebPrintWS] ServiceWorkerThread: Entry"));
 	OpenSocket();
-	OutputDebugPrintf(_T("[SanpoWebPrintWS] ServiceWorkerThread socket:%d"), socket);
-	AcceptSocket();
+	OutputDebugPrintf(_T("[SanpoWebPrintWS] ServiceWorkerThread socket:%d"), sock);
 	//定期检查是否已要求停止服务
+	fd_set fd;
+	FD_ZERO(&fd);
+	FD_SET(sock, &fd);
+	timeval timeout = { 0, 100 };
 	while (WaitForSingleObject(g_ServiceStopEvent, 0) != WAIT_OBJECT_0)
 	{
-		/*
-		 * Perform main service function here
-		 */
-		OutputDebugPrintf(_T("[SanpoWebPrintWS] WaitForSingleObject: Waiting"));
-		 //  Simulate some work by sleeping
-		Sleep(3000);
+		fd_set fdOld = fd;
+		int iResult = select(0, &fdOld, NULL, NULL, &timeout);
+		if (0 <= iResult) {
+			AcceptSocket();
+		}
 	}
 	//关闭服务器套接字
 	if (INVALID_SOCKET != sock) {
+		OutputDebugPrintf(_T("[SanpoWebPrintWS] ServiceWorkerThread closesocket:%d"), sock);
 		closesocket(sock);
 	}
 	OutputDebugPrintf(_T("[SanpoWebPrintWS] ServiceWorkerThread: Exit"));
@@ -41,7 +44,7 @@ DWORD WINAPI ServiceWorkerThread(LPVOID lpParam)
 
 
 VOID AcceptSocket() {
-	OutputDebugPrintf(_T("[SanpoWebPrintWS] AcceptSocket socket:%d"), socket);
+	OutputDebugPrintf(_T("[SanpoWebPrintWS] AcceptSocket socket:%d"), sock);
 	//设置客户端
 	sockaddr_in clientAddr;
 	int clientAddrSize = sizeof(clientAddr);
@@ -52,7 +55,7 @@ VOID AcceptSocket() {
 	// fromaddr:客户机的地址信息
 	// addrlen:地址结构体的长度（输入输出参数）
 	// 返回值：返回一个新的socket，这个socket专门用来与此客户机通讯（connected socket）
-	while (SOCKET_ERROR != (clientSock = accept(sock, (sockaddr*)& clientAddr, (socklen_t*)& clientAddrSize)))
+	if (SOCKET_ERROR != (clientSock = accept(sock, (sockaddr*)& clientAddr, (socklen_t*)& clientAddrSize)))
 	{
 		OutputDebugPrintf(_T("[SanpoWebPrintWS] AcceptSocket: accept begin"));
 		std::string requestStr;
